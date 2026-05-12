@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="et">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Varahaldus MVP — Uus toiming</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="site">
+    <div class="inner">
+      <div class="brand">IKT varahaldus (ATK)</div>
+      <nav>
+        <a data-nav href="/">Avaleht</a>
+        <a data-nav href="/assets.html">Varad</a>
+        <a data-nav href="/operations.html">Toimingud</a>
+        <a data-nav href="/new-operation.html">Uus toiming</a>
+      </nav>
+    </div>
+  </header>
+  <main>
+    <h1>Uus toiming</h1>
+    <p class="lead">Alusta toimingut ja <strong>kinni</strong> salvesta — see uuendab varade olekuid.</p>
+
+    <div id="alert" class="alert error" hidden></div>
+
+    <div class="card">
+      <h2>1) Toimingu tüüp</h2>
+      <div class="row">
+        <label><input type="radio" name="type" value="ISSUE" checked /> Kasutusse andmine</label>
+        <label><input type="radio" name="type" value="RETURN" /> Vara tagastamine</label>
+      </div>
+    </div>
+
+    <div class="card" id="cardCommon">
+      <h2>2) Töötaja</h2>
+      <div class="grid2">
+        <div>
+          <label for="emp">Töötaja nimi *</label>
+          <input id="emp" type="text" placeholder="nt Mari Tamm" autocomplete="name" />
+        </div>
+      </div>
+    </div>
+
+    <div class="card" id="cardIssue">
+      <h2>3) Kasutusse andmine — seadmed ja lisainfo</h2>
+      <p class="muted small">
+        Lisa üks või mitu <strong>laos</strong> oleva vara ID-d (rea kaupa või komadega). Ruum ja pilet on kohustuslikud (MVP).
+      </p>
+      <div class="grid2">
+        <div style="grid-column: 1 / -1">
+          <label for="issueIds">Vara ID-d *</label>
+          <textarea id="issueIds" placeholder="SEAD-1001&#10;SEAD-1002"></textarea>
+        </div>
+        <div>
+          <label for="room">Ruum *</label>
+          <input id="room" type="text" placeholder="nt A-203" />
+        </div>
+        <div>
+          <label for="ticket">Pilet *</label>
+          <input id="ticket" type="text" placeholder="nt INC-1234" />
+        </div>
+        <div style="grid-column: 1 / -1">
+          <label for="notesIssue">Lisainfo</label>
+          <textarea id="notesIssue"></textarea>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" id="cardReturn" hidden>
+      <h2>3) Vara tagastamine — vali seadmed</h2>
+      <p class="muted small">Laadi töötaja nimel olevad seadmed ja märgi tagastatavad.</p>
+      <div class="row">
+        <button class="btn primary" type="button" id="btnLoadAssigned">Laadi seadmed</button>
+        <button class="btn" type="button" id="btnSelectAll">Vali kõik</button>
+        <button class="btn" type="button" id="btnSelectNone">Eemalda valik</button>
+      </div>
+      <div id="retList" style="margin-top:0.75rem"></div>
+      <div style="margin-top:0.75rem">
+        <label for="notesRet">Lisainfo</label>
+        <textarea id="notesRet"></textarea>
+      </div>
+    </div>
+
+    <div class="card row">
+      <button class="btn success" type="button" id="btnConfirm">Kinnita toiming</button>
+      <a class="btn" href="/operations.html">Tühista / tagasi</a>
+    </div>
+  </main>
+  <script src="/app.js"></script>
+  <script>
+    (function () {
+      const alertEl = document.getElementById('alert');
+      const typeRadios = document.querySelectorAll('input[name="type"]');
+      const cardIssue = document.getElementById('cardIssue');
+      const cardReturn = document.getElementById('cardReturn');
+      const emp = document.getElementById('emp');
+      const issueIdsEl = document.getElementById('issueIds');
+      const roomEl = document.getElementById('room');
+      const ticketEl = document.getElementById('ticket');
+      const notesIssue = document.getElementById('notesIssue');
+      const notesRet = document.getElementById('notesRet');
+      const retList = document.getElementById('retList');
+      let assignedAssets = [];
+
+      function currentType() {
+        for (const r of typeRadios) if (r.checked) return r.value;
+        return 'ISSUE';
+      }
+
+      function parseAssetIds(text) {
+        return String(text || '')
+          .split(/[\n,;]+/g)
+          .map((s) => s.trim())
+          .filter(Boolean);
+      }
+
+      function syncPanels() {
+        const t = currentType();
+        const isIssue = t === 'ISSUE';
+        cardIssue.hidden = !isIssue;
+        cardReturn.hidden = isIssue;
+        clearAlert(alertEl);
+      }
+
+      typeRadios.forEach((r) => r.addEventListener('change', syncPanels));
+      syncPanels();
+
+      function renderAssigned() {
+        retList.innerHTML = '';
+        if (!assignedAssets.length) {
+          const p = document.createElement('p');
+          p.className = 'muted';
+          p.textContent = 'Seadmeid ei leitud (kas töötaja nimi on õige või pole temal seadmeid).';
+          retList.appendChild(p);
+          return;
+        }
+
+        const table = document.createElement('table');
+        table.innerHTML =
+          '<thead><tr><th></th><th>ID</th><th>Nimetus</th><th>Ruum</th></tr></thead>';
+        const tbody = document.createElement('tbody');
+
+        for (const a of assignedAssets) {
+          const tr = document.createElement('tr');
+
+          const tdCb = document.createElement('td');
+          const cb = document.createElement('input');
+          cb.type = 'checkbox';
+          cb.value = a.asset_id;
+          cb.className = 'retPick';
+          tdCb.appendChild(cb);
+
+          const tdId = document.createElement('td');
+          tdId.textContent = a.asset_id;
+
+          const tdName = document.createElement('td');
+          tdName.textContent = a.name || '—';
+
+          const tdRoom = document.createElement('td');
+          tdRoom.textContent = a.current_room || '—';
+
+          tr.appendChild(tdCb);
+          tr.appendChild(tdId);
+          tr.appendChild(tdName);
+          tr.appendChild(tdRoom);
+          tbody.appendChild(tr);
+        }
+
+        table.appendChild(tbody);
+        retList.appendChild(table);
+      }
+
+      document.getElementById('btnLoadAssigned').addEventListener('click', async () => {
+        clearAlert(alertEl);
+        const name = emp.value.trim();
+        if (!name) {
+          showAlert(alertEl, 'error', 'Täida töötaja nimi.');
+          return;
+        }
+        try {
+          const qs =
+            '?responsible=' +
+            encodeURIComponent(name) +
+            '&inStock=false&includeWrittenOff=false';
+          const data = await apiJson('/api/assets' + qs);
+          assignedAssets = data.assets || [];
+          renderAssigned();
+        } catch (e) {
+          showAlert(alertEl, 'error', e.message);
+        }
+      });
+
+      document.getElementById('btnSelectAll').addEventListener('click', () => {
+        document.querySelectorAll('.retPick').forEach((x) => (x.checked = true));
+      });
+      document.getElementById('btnSelectNone').addEventListener('click', () => {
+        document.querySelectorAll('.retPick').forEach((x) => (x.checked = false));
+      });
+
+      document.getElementById('btnConfirm').addEventListener('click', async () => {
+        clearAlert(alertEl);
+        const t = currentType();
+        const employeeName = emp.value.trim();
+        if (!employeeName) {
+          showAlert(alertEl, 'error', 'Töötaja nimi on kohustuslik.');
+          return;
+        }
+
+        try {
+          if (t === 'ISSUE') {
+            const assetIds = parseAssetIds(issueIdsEl.value);
+            const room = roomEl.value.trim();
+            const ticket = ticketEl.value.trim();
+            if (!assetIds.length) {
+              showAlert(alertEl, 'error', 'Lisa vähemalt üks vara ID.');
+              return;
+            }
+            if (!room || !ticket) {
+              showAlert(alertEl, 'error', 'Ruum ja pilet on kohustuslikud.');
+              return;
+            }
+            const payload = {
+              type: 'ISSUE',
+              employeeName,
+              assetIds,
+              room,
+              ticket,
+              notes: notesIssue.value.trim() || null
+            };
+            const res = await apiJson('/api/operations', {
+              method: 'POST',
+              body: JSON.stringify(payload)
+            });
+            window.location.href = '/operation.html?id=' + encodeURIComponent(res.operation.operation_id);
+          } else {
+            const picked = Array.from(document.querySelectorAll('.retPick'))
+              .filter((x) => x.checked)
+              .map((x) => x.value);
+            if (!picked.length) {
+              showAlert(alertEl, 'error', 'Vali vähemalt üks tagastatav vara.');
+              return;
+            }
+            const payload = {
+              type: 'RETURN',
+              employeeName,
+              assetIds: picked,
+              notes: notesRet.value.trim() || null
+            };
+            const res = await apiJson('/api/operations', {
+              method: 'POST',
+              body: JSON.stringify(payload)
+            });
+            window.location.href = '/operation.html?id=' + encodeURIComponent(res.operation.operation_id);
+          }
+        } catch (e) {
+          showAlert(alertEl, 'error', e.message);
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

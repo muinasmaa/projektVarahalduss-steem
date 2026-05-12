@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="et">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Varahaldus MVP — Avaleht</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="site">
+    <div class="inner">
+      <div class="brand">IKT varahaldus (ATK)</div>
+      <nav>
+        <a data-nav href="/">Avaleht</a>
+        <a data-nav href="/assets.html">Varad</a>
+        <a data-nav href="/operations.html">Toimingud</a>
+        <a data-nav href="/new-operation.html">Uus toiming</a>
+      </nav>
+    </div>
+  </header>
+  <main>
+    <h1>Tere, ATK töötaja</h1>
+    <p class="lead">Kiired toimingud varade ja aktide halduseks (lokaalne MVP).</p>
+
+    <div class="card row">
+      <a class="btn primary" href="/assets.html">Varad</a>
+      <a class="btn" href="/operations.html">Toimingud</a>
+      <a class="btn success" href="/new-operation.html">Uus toiming</a>
+    </div>
+
+    <div class="card">
+      <h2>Viimased 10 toimingut</h2>
+      <p class="muted small">Ajaliselt viimased (uuemad üleval).</p>
+      <div id="alert" class="alert error" hidden></div>
+      <div id="opsWrap">
+        <p class="muted" id="opsLoading">Laadin…</p>
+        <table id="opsTable" hidden>
+          <thead>
+            <tr>
+              <th>Aeg</th>
+              <th>Tüüp</th>
+              <th>Number</th>
+              <th>Koostaja</th>
+            </tr>
+          </thead>
+          <tbody id="opsBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+  <script src="/app.js"></script>
+  <script>
+    (async function () {
+      const alertEl = document.getElementById('alert');
+      const loading = document.getElementById('opsLoading');
+      const table = document.getElementById('opsTable');
+      const body = document.getElementById('opsBody');
+      try {
+        clearAlert(alertEl);
+        const data = await apiJson('/api/operations?limit=10');
+        loading.hidden = true;
+        if (!data.operations.length) {
+          loading.textContent = 'Toiminguid pole veel.';
+          loading.hidden = false;
+          return;
+        }
+        table.hidden = false;
+        for (const o of data.operations) {
+          const tr = document.createElement('tr');
+          const ts = o.timestamp ? new Date(o.timestamp).toLocaleString('et-EE') : '—';
+          tr.innerHTML =
+            `<td>${ts}</td>` +
+            `<td>${operationTypeEt(o.type)}</td>` +
+            `<td><a href="/operation.html?id=${o.operation_id}">${o.number}</a></td>` +
+            `<td>${o.created_by || '—'}</td>`;
+          body.appendChild(tr);
+        }
+      } catch (e) {
+        loading.hidden = true;
+        showAlert(alertEl, 'error', e.message);
+      }
+    })();
+  </script>
+</body>
+</html>

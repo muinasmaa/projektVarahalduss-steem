@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="et">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Varahaldus MVP — Varakaart</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="site">
+    <div class="inner">
+      <div class="brand">IKT varahaldus (ATK)</div>
+      <nav>
+        <a data-nav href="/">Avaleht</a>
+        <a data-nav href="/assets.html">Varad</a>
+        <a data-nav href="/operations.html">Toimingud</a>
+        <a data-nav href="/new-operation.html">Uus toiming</a>
+      </nav>
+    </div>
+  </header>
+  <main>
+    <p class="muted"><a href="/assets.html">← Tagasi varade juurde</a></p>
+    <h1>Varakaart</h1>
+    <div id="alert" class="alert error" hidden></div>
+    <div id="content" class="card" hidden>
+      <div class="row" style="justify-content:space-between">
+        <div>
+          <h2 id="aid" style="margin:0"></h2>
+          <p class="muted small" id="sub"></p>
+        </div>
+        <div>
+          <span class="badge" id="stBadge"></span>
+        </div>
+      </div>
+      <div class="grid2" style="margin-top:1rem">
+        <div>
+          <div class="muted small">Nimetus</div>
+          <div id="name"></div>
+        </div>
+        <div>
+          <div class="muted small">Vara alagrupp</div>
+          <div id="subgroup"></div>
+        </div>
+        <div>
+          <div class="muted small">Olek</div>
+          <div id="status"></div>
+        </div>
+        <div>
+          <div class="muted small">Ruum (praegu)</div>
+          <div id="room"></div>
+        </div>
+        <div>
+          <div class="muted small">Soetamise aeg</div>
+          <div id="purchase"></div>
+        </div>
+        <div>
+          <div class="muted small">Vanus</div>
+          <div id="age"></div>
+        </div>
+        <div>
+          <div class="muted small">Järelejäänud kasutusaeg</div>
+          <div id="lifeLeft"></div>
+        </div>
+        <div>
+          <div class="muted small">Garantii olek</div>
+          <div id="warranty"></div>
+        </div>
+        <div>
+          <div class="muted small">Ostu arve number</div>
+          <div id="invoice"></div>
+        </div>
+        <div>
+          <div class="muted small">Vastutaja (praegu)</div>
+          <div id="resp"></div>
+        </div>
+      </div>
+      <div class="row" style="margin-top:1rem">
+        <button class="btn danger" type="button" id="btnWriteoff" title="Märgib vara mahakantuks">Mahakanda</button>
+        <a class="btn" href="/new-operation.html">Uus toiming</a>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Seotud toimingud</h2>
+      <p class="muted small">Kõik aktid, millega vara on seotud.</p>
+      <table id="opTbl" hidden>
+        <thead>
+          <tr>
+            <th>Kuupäev</th>
+            <th>Tüüp</th>
+            <th>Number</th>
+            <th>Töötaja</th>
+          </tr>
+        </thead>
+        <tbody id="opBody"></tbody>
+      </table>
+      <p class="muted" id="opEmpty" hidden>Toiminguid pole või pole laetud.</p>
+    </div>
+  </main>
+  <script src="/app.js"></script>
+  <script>
+    (async function () {
+      const params = new URLSearchParams(location.search);
+      const id = params.get('id');
+      const alertEl = document.getElementById('alert');
+      const content = document.getElementById('content');
+
+      if (!id || !id.trim()) {
+        showAlert(alertEl, 'error', 'Puudu vara ID (lisa ?id=SEAD-1001).');
+        return;
+      }
+
+      try {
+        clearAlert(alertEl);
+        const data = await apiJson('/api/assets/' + encodeURIComponent(id.trim()));
+        const a = data.asset;
+        content.hidden = false;
+        document.getElementById('aid').textContent = a.asset_id;
+        document.getElementById('sub').textContent = 'Loodud: ' + new Date(a.created_at).toLocaleString('et-EE');
+        document.getElementById('name').textContent = a.name || '—';
+        document.getElementById('subgroup').textContent = a.subgroup || '—';
+        document.getElementById('status').textContent = statusEt(a.status);
+        document.getElementById('room').textContent = a.current_room || '—';
+        document.getElementById('purchase').textContent = formatDateIso(a.purchase_date);
+        const ageM = computedAgeMonths(a.purchase_date);
+        document.getElementById('age').textContent = ageM != null ? `${ageM} kuud` : '—';
+        const left = computedRemainingLifeMonths(a.purchase_date, a.expected_life_months);
+        document.getElementById('lifeLeft').textContent = left != null ? `${left} kuud` : '—';
+        const w = warrantyStatus(a.warranty_end_date);
+        document.getElementById('warranty').textContent = w.label;
+        document.getElementById('invoice').textContent = a.invoice_number || '—';
+        document.getElementById('resp').textContent = a.current_responsible_name || '—';
+
+        const badge = document.getElementById('stBadge');
+        badge.textContent = statusEt(a.status);
+        badge.className = 'badge ' + statusBadgeClass(a.status);
+
+        const opTbl = document.getElementById('opTbl');
+        const opBody = document.getElementById('opBody');
+        const opEmpty = document.getElementById('opEmpty');
+        opBody.innerHTML = '';
+        if (data.operations && data.operations.length) {
+          opTbl.hidden = false;
+          opEmpty.hidden = true;
+          for (const o of data.operations) {
+            const tr = document.createElement('tr');
+            const ts = o.timestamp ? new Date(o.timestamp).toLocaleString('et-EE') : '—';
+            tr.innerHTML =
+              `<td>${ts}</td>` +
+              `<td>${operationTypeEt(o.type)}</td>` +
+              `<td><a href="/operation.html?id=${o.operation_id}">${o.number}</a></td>` +
+              `<td>${o.employee_name || '—'}</td>`;
+            opBody.appendChild(tr);
+          }
+        } else {
+          opTbl.hidden = true;
+          opEmpty.hidden = false;
+        }
+
+        const btn = document.getElementById('btnWriteoff');
+        if (a.status === 'WRITTEN_OFF') {
+          btn.disabled = true;
+          btn.textContent = 'Juba mahakantud';
+        } else {
+          btn.addEventListener('click', async () => {
+            if (!confirm('Kas maha kanda vara ' + a.asset_id + '? See eemaldab aktiivsest nimekirjast.')) return;
+            try {
+              clearAlert(alertEl);
+              await apiJson('/api/assets/' + encodeURIComponent(a.asset_id), { method: 'DELETE' });
+              showAlert(alertEl, 'ok', 'Vara maha kantud.');
+              location.reload();
+            } catch (e) {
+              showAlert(alertEl, 'error', e.message);
+            }
+          });
+        }
+      } catch (e) {
+        if (e.status === 404) {
+          showAlert(alertEl, 'error', e.message || 'Sellise ID-ga vara süsteemis pole.');
+        } else {
+          showAlert(alertEl, 'error', e.message);
+        }
+      }
+    })();
+  </script>
+</body>
+</html>

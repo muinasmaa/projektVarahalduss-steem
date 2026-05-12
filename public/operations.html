@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="et">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Varahaldus MVP — Toimingud</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="site">
+    <div class="inner">
+      <div class="brand">IKT varahaldus (ATK)</div>
+      <nav>
+        <a data-nav href="/">Avaleht</a>
+        <a data-nav href="/assets.html">Varad</a>
+        <a data-nav href="/operations.html">Toimingud</a>
+        <a data-nav href="/new-operation.html">Uus toiming</a>
+      </nav>
+    </div>
+  </header>
+  <main>
+    <h1>Toimingud</h1>
+    <p class="lead">Kõik kinnitatud aktid ajas järjest (uuemad üleval).</p>
+
+    <div class="row" style="margin-bottom:1rem">
+      <a class="btn success" href="/new-operation.html">Uus toiming</a>
+      <button class="btn" type="button" id="btnReload">Värskenda</button>
+    </div>
+
+    <div id="alert" class="alert error" hidden></div>
+
+    <div class="card">
+      <table id="tbl">
+        <thead>
+          <tr>
+            <th>Aeg</th>
+            <th>Tüüp</th>
+            <th>Number</th>
+            <th>Koostaja</th>
+            <th>Töötaja</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+      <p class="muted" id="empty" hidden>Toiminguid pole.</p>
+    </div>
+  </main>
+  <script src="/app.js"></script>
+  <script>
+    (function () {
+      const alertEl = document.getElementById('alert');
+      const tbody = document.getElementById('tbody');
+      const empty = document.getElementById('empty');
+      const tbl = document.getElementById('tbl');
+
+      async function load() {
+        clearAlert(alertEl);
+        tbody.innerHTML = '';
+        try {
+          const data = await apiJson('/api/operations');
+          if (!data.operations.length) {
+            tbl.hidden = true;
+            empty.hidden = false;
+            return;
+          }
+          tbl.hidden = false;
+          empty.hidden = true;
+          for (const o of data.operations) {
+            const tr = document.createElement('tr');
+            const ts = o.timestamp ? new Date(o.timestamp).toLocaleString('et-EE') : '—';
+            tr.innerHTML =
+              `<td>${ts}</td>` +
+              `<td>${operationTypeEt(o.type)}</td>` +
+              `<td><a href="/operation.html?id=${o.operation_id}">${o.number}</a></td>` +
+              `<td>${o.created_by || '—'}</td>` +
+              `<td>${o.employee_name || '—'}</td>`;
+            tbody.appendChild(tr);
+          }
+        } catch (e) {
+          showAlert(alertEl, 'error', e.message);
+        }
+      }
+
+      document.getElementById('btnReload').addEventListener('click', load);
+      load();
+    })();
+  </script>
+</body>
+</html>

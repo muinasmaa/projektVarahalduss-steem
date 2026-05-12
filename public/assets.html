@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="et">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Varahaldus MVP — Varad</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="site">
+    <div class="inner">
+      <div class="brand">IKT varahaldus (ATK)</div>
+      <nav>
+        <a data-nav href="/">Avaleht</a>
+        <a data-nav href="/assets.html">Varad</a>
+        <a data-nav href="/operations.html">Toimingud</a>
+        <a data-nav href="/new-operation.html">Uus toiming</a>
+      </nav>
+    </div>
+  </header>
+  <main>
+    <h1>Varad</h1>
+    <p class="lead">Otsi ja halda seadmeid. Uued seadmed lisanduvad laoseisu vaatesse.</p>
+
+    <div class="card">
+      <details class="guide" open>
+        <summary>Seadmete arvele võtmise juhend (MVP)</summary>
+        <ol>
+          <li>Kontrolli füüsilise kleepsu / inventuuri ID-d (kasuta sama koodi süsteemis).</li>
+          <li>Täida all <strong>Uus seade</strong> vorm: unikaalne ID, nimetus, alagrupp, soetus- ja garantii kuupäevad, ostuarve.</li>
+          <li>Salvestamise järel on seade olekus <kbd>Laos</kbd>. Kasutusse andmiseks loo <a href="/new-operation.html">Uus toiming</a> → Kasutusse andmine.</li>
+          <li>Mahakandmiseks ava varakaart ja vajuta <strong>Mahakanda</strong> (soft-delete, ajalugu jääb alles).</li>
+        </ol>
+      </details>
+    </div>
+
+    <div id="alert" class="alert error" hidden></div>
+
+    <div class="card">
+      <h2>Otsing</h2>
+      <form id="filterForm" class="grid2">
+        <div>
+          <label for="f_id">Vara ID</label>
+          <input id="f_id" name="id" type="text" placeholder="nt SEAD-1001" autocomplete="off" />
+        </div>
+        <div>
+          <label for="f_name">Nimetus</label>
+          <input id="f_name" name="name" type="text" placeholder="osaline otsing" />
+        </div>
+        <div>
+          <label for="f_subgroup">Vara alagrupp</label>
+          <input id="f_subgroup" name="subgroup" type="text" placeholder="nt Monitor" />
+        </div>
+        <div>
+          <label for="f_resp">Vastutaja nimi</label>
+          <input id="f_resp" name="responsible" type="text" placeholder="osaline otsing" />
+        </div>
+        <div>
+          <label for="f_instock">Laoseis</label>
+          <select id="f_instock" name="inStock">
+            <option value="">Kõik aktiivsed</option>
+            <option value="true">Ainult laos</option>
+            <option value="false">Ainult kasutaja käes</option>
+          </select>
+        </div>
+        <div>
+          <label for="f_woff">Mahakantud</label>
+          <select id="f_woff" name="includeWrittenOff">
+            <option value="false" selected>Peida mahakantud</option>
+            <option value="true">Kaasa mahakantud</option>
+          </select>
+        </div>
+      </form>
+      <div class="row" style="margin-top:0.75rem">
+        <button class="btn primary" type="button" id="btnSearch">Otsi</button>
+        <button class="btn" type="button" id="btnClear">Tühjenda filtrid</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Tulemused</h2>
+      <p class="muted small" id="resultHint"></p>
+      <table id="tbl">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Nimetus</th>
+            <th>Olek</th>
+            <th>Ruum</th>
+            <th>Vastutaja</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>Uus seade (arvele võtmine)</h2>
+      <form id="createForm" class="grid2">
+        <div>
+          <label for="c_id">Unikaalne vara ID *</label>
+          <input id="c_id" name="asset_id" required type="text" placeholder="nt SEAD-2001" />
+        </div>
+        <div>
+          <label for="c_name">Nimetus *</label>
+          <input id="c_name" name="name" required type="text" />
+        </div>
+        <div>
+          <label for="c_subgroup">Vara alagrupp *</label>
+          <input id="c_subgroup" name="subgroup" required type="text" />
+        </div>
+        <div>
+          <label for="c_purchase">Soetamise kuupäev *</label>
+          <input id="c_purchase" name="purchase_date" required type="date" />
+        </div>
+        <div>
+          <label for="c_warranty">Garantii lõpp *</label>
+          <input id="c_warranty" name="warranty_end_date" required type="date" />
+        </div>
+        <div>
+          <label for="c_life">Eeldatav kasutusaeg (kuud)</label>
+          <input id="c_life" name="expected_life_months" type="number" min="1" value="36" />
+        </div>
+        <div style="grid-column: 1 / -1">
+          <label for="c_inv">Ostu arve number</label>
+          <input id="c_inv" name="invoice_number" type="text" />
+        </div>
+      </form>
+      <div class="row" style="margin-top:0.75rem">
+        <button class="btn success" type="submit" form="createForm">Salvesta uus seade</button>
+      </div>
+    </div>
+  </main>
+  <script src="/app.js"></script>
+  <script>
+    (function () {
+      const alertEl = document.getElementById('alert');
+      const tbody = document.getElementById('tbody');
+      const hint = document.getElementById('resultHint');
+      const filterForm = document.getElementById('filterForm');
+      const createForm = document.getElementById('createForm');
+
+      function qs() {
+        const p = new URLSearchParams();
+        const id = filterForm.f_id.value.trim();
+        const name = filterForm.f_name.value.trim();
+        const subgroup = filterForm.f_subgroup.value.trim();
+        const responsible = filterForm.f_resp.value.trim();
+        const inStock = filterForm.f_instock.value;
+        const includeWrittenOff = filterForm.f_woff.value;
+        if (id) p.set('id', id);
+        if (name) p.set('name', name);
+        if (subgroup) p.set('subgroup', subgroup);
+        if (responsible) p.set('responsible', responsible);
+        if (inStock) p.set('inStock', inStock);
+        if (includeWrittenOff) p.set('includeWrittenOff', includeWrittenOff);
+        const s = p.toString();
+        return s ? '?' + s : '';
+      }
+
+      function renderRows(assets) {
+        tbody.innerHTML = '';
+        for (const a of assets) {
+          const tr = document.createElement('tr');
+          const st = statusEt(a.status);
+          const bc = statusBadgeClass(a.status);
+          tr.innerHTML =
+            `<td><a href="/asset.html?id=${encodeURIComponent(a.asset_id)}">${a.asset_id}</a></td>` +
+            `<td>${a.name || '—'}</td>` +
+            `<td><span class="badge ${bc}">${st}</span></td>` +
+            `<td>${a.current_room || '—'}</td>` +
+            `<td>${a.current_responsible_name || '—'}</td>`;
+          tbody.appendChild(tr);
+        }
+      }
+
+      async function load() {
+        clearAlert(alertEl);
+        hint.textContent = 'Laadin…';
+        try {
+          const data = await apiJson('/api/assets' + qs());
+          hint.textContent = data.assets.length ? `Leitud: ${data.assets.length}` : 'Vasteid pole (muuda filtrit).';
+          renderRows(data.assets);
+        } catch (e) {
+          hint.textContent = '';
+          showAlert(alertEl, 'error', e.message);
+        }
+      }
+
+      document.getElementById('btnSearch').addEventListener('click', load);
+      document.getElementById('btnClear').addEventListener('click', () => {
+        filterForm.reset();
+        filterForm.f_woff.value = 'false';
+        load();
+      });
+
+      createForm.addEventListener('submit', async (ev) => {
+        ev.preventDefault();
+        clearAlert(alertEl);
+        const payload = {
+          asset_id: createForm.c_id.value.trim(),
+          name: createForm.c_name.value.trim(),
+          subgroup: createForm.c_subgroup.value.trim(),
+          purchase_date: createForm.c_purchase.value,
+          warranty_end_date: createForm.c_warranty.value,
+          expected_life_months: Number(createForm.c_life.value || '36'),
+          invoice_number: createForm.c_inv.value.trim()
+        };
+        try {
+          await apiJson('/api/assets', { method: 'POST', body: JSON.stringify(payload) });
+          showAlert(alertEl, 'ok', 'Seade salvestatud ja on laos.');
+          createForm.reset();
+          createForm.c_life.value = '36';
+          filterForm.f_id.value = payload.asset_id;
+          await load();
+        } catch (e) {
+          showAlert(alertEl, 'error', e.message);
+        }
+      });
+
+      load();
+    })();
+  </script>
+</body>
+</html>

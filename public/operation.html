@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="et">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Varahaldus MVP — Toiming</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="site">
+    <div class="inner">
+      <div class="brand">IKT varahaldus (ATK)</div>
+      <nav>
+        <a data-nav href="/">Avaleht</a>
+        <a data-nav href="/assets.html">Varad</a>
+        <a data-nav href="/operations.html">Toimingud</a>
+        <a data-nav href="/new-operation.html">Uus toiming</a>
+      </nav>
+    </div>
+  </header>
+  <main>
+    <p class="muted"><a href="/operations.html">← Tagasi toimingute juurde</a></p>
+    <h1>Toimingu detail</h1>
+    <div id="alert" class="alert error" hidden></div>
+    <div id="content" class="card" hidden>
+      <div class="grid2">
+        <div>
+          <div class="muted small">Toimingu tüüp</div>
+          <div id="type"></div>
+        </div>
+        <div>
+          <div class="muted small">Number</div>
+          <div id="number"></div>
+        </div>
+        <div>
+          <div class="muted small">Kuupäev</div>
+          <div id="ts"></div>
+        </div>
+        <div>
+          <div class="muted small">Koostaja</div>
+          <div id="by"></div>
+        </div>
+        <div>
+          <div class="muted small">Töötaja</div>
+          <div id="emp"></div>
+        </div>
+        <div>
+          <div class="muted small">Ruum</div>
+          <div id="room"></div>
+        </div>
+        <div>
+          <div class="muted small">Pilet</div>
+          <div id="ticket"></div>
+        </div>
+        <div style="grid-column: 1 / -1">
+          <div class="muted small">Lisainfo</div>
+          <div id="notes"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Seadmed toimingus</h2>
+      <table id="tbl" hidden>
+        <thead>
+          <tr>
+            <th>Vara ID</th>
+            <th>Nimetus</th>
+            <th>Praegune olek</th>
+            <th>Ruum</th>
+            <th>Vastutaja</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </main>
+  <script src="/app.js"></script>
+  <script>
+    (async function () {
+      const params = new URLSearchParams(location.search);
+      const id = params.get('id');
+      const alertEl = document.getElementById('alert');
+      const content = document.getElementById('content');
+      if (!id) {
+        showAlert(alertEl, 'error', 'Puudu toimingu id (lisa ?id=1).');
+        return;
+      }
+      try {
+        clearAlert(alertEl);
+        const data = await apiJson('/api/operations/' + encodeURIComponent(id));
+        const o = data.operation;
+        content.hidden = false;
+        document.getElementById('type').textContent = operationTypeEt(o.type);
+        document.getElementById('number').textContent = o.number;
+        document.getElementById('ts').textContent = o.timestamp ? new Date(o.timestamp).toLocaleString('et-EE') : '—';
+        document.getElementById('by').textContent = o.created_by || '—';
+        document.getElementById('emp').textContent = o.employee_name || '—';
+        document.getElementById('room').textContent = o.room || '—';
+        document.getElementById('ticket').textContent = o.ticket || '—';
+        document.getElementById('notes').textContent = o.notes || '—';
+
+        const tbl = document.getElementById('tbl');
+        const tbody = document.getElementById('tbody');
+        tbody.innerHTML = '';
+        if (data.assets && data.assets.length) {
+          tbl.hidden = false;
+          for (const a of data.assets) {
+            const tr = document.createElement('tr');
+            const st = statusEt(a.status);
+            const bc = statusBadgeClass(a.status);
+            tr.innerHTML =
+              `<td><a href="/asset.html?id=${encodeURIComponent(a.asset_id)}">${a.asset_id}</a></td>` +
+              `<td>${a.name || '—'}</td>` +
+              `<td><span class="badge ${bc}">${st}</span></td>` +
+              `<td>${a.current_room || '—'}</td>` +
+              `<td>${a.current_responsible_name || '—'}</td>`;
+            tbody.appendChild(tr);
+          }
+        } else {
+          tbl.hidden = true;
+        }
+      } catch (e) {
+        showAlert(alertEl, 'error', e.message);
+      }
+    })();
+  </script>
+</body>
+</html>

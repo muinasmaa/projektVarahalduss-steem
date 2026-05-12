@@ -1,0 +1,17 @@
+{
+  "name": "varahaldussusteem-mvp",
+  "version": "1.0.0",
+  "description": "IKT seadmete varahaldussüsteemi MVP (ATK vaade)",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node server/index.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "sql.js": "^1.11.0"
+  }
+}
