@@ -110,12 +110,28 @@
           <input id="c_subgroup" name="subgroup" required type="text" />
         </div>
         <div>
-          <label for="c_purchase">Soetamise kuupäev *</label>
-          <input id="c_purchase" name="purchase_date" required type="date" />
+          <label for="c_purchase">Soetamise kuupäev * <span class="muted small">(pp/kk/aaaa)</span></label>
+          <input
+            id="c_purchase"
+            name="purchase_date"
+            required
+            type="text"
+            inputmode="numeric"
+            placeholder="nt 15/01/2024"
+            autocomplete="off"
+          />
         </div>
         <div>
-          <label for="c_warranty">Garantii lõpp *</label>
-          <input id="c_warranty" name="warranty_end_date" required type="date" />
+          <label for="c_warranty">Garantii lõpp * <span class="muted small">(pp/kk/aaaa)</span></label>
+          <input
+            id="c_warranty"
+            name="warranty_end_date"
+            required
+            type="text"
+            inputmode="numeric"
+            placeholder="nt 31/12/2025"
+            autocomplete="off"
+          />
         </div>
         <div>
           <label for="c_life">Eeldatav kasutusaeg (kuud)</label>
@@ -197,12 +213,22 @@
       createForm.addEventListener('submit', async (ev) => {
         ev.preventDefault();
         clearAlert(alertEl);
+        const purchaseIso = parseEuropeanDateToIso(createForm.c_purchase.value);
+        const warrantyIso = parseEuropeanDateToIso(createForm.c_warranty.value);
+        if (!purchaseIso) {
+          showAlert(alertEl, 'error', 'Soetamise kuupäev: sisesta kuupäev kujul pp/kk/aaaa (nt 15/01/2024).');
+          return;
+        }
+        if (!warrantyIso) {
+          showAlert(alertEl, 'error', 'Garantii lõpp: sisesta kuupäev kujul pp/kk/aaaa.');
+          return;
+        }
         const payload = {
           asset_id: createForm.c_id.value.trim(),
           name: createForm.c_name.value.trim(),
           subgroup: createForm.c_subgroup.value.trim(),
-          purchase_date: createForm.c_purchase.value,
-          warranty_end_date: createForm.c_warranty.value,
+          purchase_date: purchaseIso,
+          warranty_end_date: warrantyIso,
           expected_life_months: Number(createForm.c_life.value || '36'),
           invoice_number: createForm.c_inv.value.trim()
         };

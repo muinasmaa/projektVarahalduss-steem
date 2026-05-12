@@ -35,6 +35,22 @@ function formatDateIso(isoDate) {
   return d;
 }
 
+/** Parses dd/mm/yyyy or dd.mm.yyyy to YYYY-MM-DD. Returns null if invalid. */
+function parseEuropeanDateToIso(raw) {
+  if (!raw || typeof raw !== 'string') return null;
+  const s = raw.trim().replace(/\./g, '/');
+  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(s);
+  if (!m) return null;
+  const d = Number(m[1]);
+  const mo = Number(m[2]);
+  const y = Number(m[3]);
+  if (mo < 1 || mo > 12 || d < 1 || d > 31) return null;
+  const dt = new Date(y, mo - 1, d);
+  if (Number.isNaN(dt.getTime())) return null;
+  if (dt.getFullYear() !== y || dt.getMonth() !== mo - 1 || dt.getDate() !== d) return null;
+  return `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
+
 function monthsBetween(startIso, endIso) {
   const s = new Date(String(startIso).slice(0, 10) + 'T12:00:00');
   const e = new Date(String(endIso).slice(0, 10) + 'T12:00:00');
